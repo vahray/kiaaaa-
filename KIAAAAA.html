@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>I Love You ❤️</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: 'Playfair Display', serif;
+    }
+
+    /* Soft glowing background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 50%, rgba(180, 30, 60, 0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .scene {
+      position: relative;
+      width: 420px;
+      height: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Rotating ring that holds all letters */
+    .heart-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      animation: spinRing 12s linear infinite;
+    }
+
+    @keyframes spinRing {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .letter {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform-origin: 0 0;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #ff2d55;
+      text-shadow:
+        0 0 8px rgba(255, 45, 85, 0.9),
+        0 0 20px rgba(255, 45, 85, 0.5);
+      user-select: none;
+
+      /* Each letter counter-rotates so it always reads upright */
+      /* This is set per-letter via inline style */
+    }
+
+    /* Center heart emoji / glow */
+    .center-heart {
+      position: relative;
+      z-index: 10;
+      font-size: 72px;
+      animation: pulse 1.6s ease-in-out infinite;
+      filter: drop-shadow(0 0 18px rgba(255, 45, 85, 0.8));
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.12);
+      }
+    }
+
+    /* Sparkles */
+    .sparkle {
+      position: absolute;
+      border-radius: 50%;
+      background: white;
+      animation: twinkle var(--d) ease-in-out infinite var(--delay);
+      opacity: 0;
+    }
+
+    @keyframes twinkle {
+
+      0%,
+      100% {
+        opacity: 0;
+        transform: scale(0);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="scene">
+    <div class="heart-ring" id="ring"></div>
+    <div class="center-heart">K I A</div>
+  </div>
+
+  <script>
+    // ─── Heart parametric curve ───────────────────────────────────────────────
+    // Parametric heart: x = 16 sin³t,  y = 13cos t − 5cos2t − 2cos3t − cos4t
+    // t ∈ [0, 2π], scaled & centered.
+
+    const ring = document.getElementById('ring');
+    const text = 'I LOVE YOU ♥ I LOVE YOU ♥ ';   // text that wraps the heart
+    const RADIUS = 170;   // approximate bounding box half-size for scaling
+    const NUM_CHARS = text.length;
+
+    // Sample N equally-spaced points along the heart curve
+    function heartPoint(t) {
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      return { x, y };
+    }
+
+    // Build an arc-length parameterisation so letters are evenly spaced
+    const SAMPLES = 2000;
+    const rawPts = [];
+    for (let i = 0; i <= SAMPLES; i++) {
+      const t = (i / SAMPLES) * 2 * Math.PI;
+      rawPts.push(heartPoint(t));
+    }
+
+    // Compute cumulative arc length
+    const arcLen = [0];
+    for (let i = 1; i <= SAMPLES; i++) {
+      const dx = rawPts[i].x - rawPts[i - 1].x;
+      const dy = rawPts[i].y - rawPts[i - 1].y;
+      arcLen.push(arcLen[i - 1] + Math.hypot(dx, dy));
+    }
+    const totalLen = arcLen[SAMPLES];
+
+    // Find point at given arc-length fraction
+    function pointAtFraction(frac) {
+      const target = frac * totalLen;
+      let lo = 0, hi = SAMPLES;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        arcLen[mid] < target ? lo = mid : hi = mid;
+      }
+      const t = (target - arcLen[lo]) / (arcLen[hi] - arcLen[lo] || 1);
+      return {
+        x: rawPts[lo].x + t * (rawPts[hi].x - rawPts[lo].x),
+        y: rawPts[lo].y + t * (rawPts[hi].y - rawPts[lo].y),
+      };
+    }
+
+    // Scale factor: raw heart fits in ~[-16,16] x [-17,13] → scale to RADIUS
+    const SCALE = RADIUS / 16.5;
+
+    // Place each character
+    for (let i = 0; i < NUM_CHARS; i++) {
+      const frac = i / NUM_CHARS;
+      const p = pointAtFraction(frac);
+      const pNext = pointAtFraction((i + 0.5) / NUM_CHARS);
+
+      // Angle of tangent at this point (for letter orientation along the curve)
+      const angle = Math.atan2(pNext.y - p.y, pNext.x - p.x) * (180 / Math.PI);
+
+      const px = p.x * SCALE;   // pixel offset from center
+      const py = p.y * SCALE;
+
+      const el = document.createElement('span');
+      el.classList.add('letter');
+      el.textContent = text[i];
+
+      // Position: translate from center (210,210) to the heart point,
+      // then rotate the letter to follow the curve tangent.
+      // We also counter-rotate by the ring's current rotation so letters stay upright
+      // — we do this with a CSS animation that mirrors the parent rotation.
+      el.style.cssText = `
+      transform: translate(${px}px, ${py}px) rotate(${angle + 90}deg) translateX(-50%);
+    `;
+
+      // Color variation: cycle pink → red → rose
+      const hue = 340 + Math.sin(i / NUM_CHARS * Math.PI * 2) * 20;
+      el.style.color = `hsl(${hue}, 100%, 65%)`;
+      el.style.textShadow = `0 0 8px hsl(${hue},100%,65%), 0 0 22px hsl(${hue},100%,50%)`;
+
+      ring.appendChild(el);
+    }
+
+    // ─── Sparkles ─────────────────────────────────────────────────────────────
+    const scene = document.querySelector('.scene');
+    for (let s = 0; s < 22; s++) {
+      const sp = document.createElement('div');
+      sp.classList.add('sparkle');
+      const size = 2 + Math.random() * 3;
+      sp.style.cssText = `
+      width: ${size}px; height: ${size}px;
+      left: ${10 + Math.random() * 80}%;
+      top:  ${10 + Math.random() * 80}%;
+      --d: ${1.5 + Math.random() * 2.5}s;
+      --delay: -${Math.random() * 3}s;
+    `;
+      scene.appendChild(sp);
+    }
+  </script>
+</body>
+
+</html>
